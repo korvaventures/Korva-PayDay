@@ -7,7 +7,16 @@ from sqlalchemy.orm import DeclarativeBase, Mapped, Session, mapped_column, sess
 
 from .config import settings
 
-engine = create_engine(settings.database_url)
+
+def _sqlalchemy_database_url(database_url: str) -> str:
+    if database_url.startswith("postgres://"):
+        return database_url.replace("postgres://", "postgresql+psycopg://", 1)
+    if database_url.startswith("postgresql://"):
+        return database_url.replace("postgresql://", "postgresql+psycopg://", 1)
+    return database_url
+
+
+engine = create_engine(_sqlalchemy_database_url(settings.database_url), pool_pre_ping=True)
 SessionLocal = sessionmaker(engine, expire_on_commit=False)
 
 OPEN_STATUSES = ["SENT", "UNPAID", "PARTIALLY_PAID", "PAYMENT_PENDING"]

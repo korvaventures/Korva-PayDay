@@ -10,5 +10,6 @@ dependencies = [
     "pycountry>=26.2.16",
     "pydantic-extra-types>=2.11.1",
     "pydantic-settings>=2.16.1",
+    "psycopg[binary]>=3.2",
     "sqlalchemy>=2.1.6",
 ]
