@@ -14,7 +14,8 @@ from .config import settings
 
 from .db import OPEN_STATUSES, Base, Invoice, SessionLocal, WebhookEvent, engine, get_db
 from .paypal import PayPalError, build_invoice_payload, paypal
-from .schemas import InvoiceDraft, InvoiceOut, ReminderIn
+from .llm import LLMParseError, interpret_grid_request, parse_invoice_text
+from .schemas import GridAssistantIn, InvoiceDraft, InvoiceOut, ParseIn, ParseOut, ReminderIn
 
 log = logging.getLogger("payday")
 
@@ -40,6 +41,9 @@ async def paypal_error_handler(_: Request, exc: PayPalError) -> JSONResponse:
     # Pass PayPal's body through: its debug_id and field paths are the fastest way to fix a bad payload.
     return JSONResponse(status_code=502, content={"error": "paypal_error", "status": exc.status, "detail": exc.body})
 
+@app.exception_handler(LLMParseError)
+async def llm_error_handler(_: Request, exc: LLMParseError) -> JSONResponse:
+    return JSONResponse(status_code=502, content={"error": "llm_parse_error", "detail": str(exc)})
 
 @app.get("/health")
 def health() -> dict:
@@ -150,3 +154,19 @@ async def paypal_webhook(request: Request):
 
     await run_in_threadpool(_handle_event, event)
     return {"ok": True}
+
+@app.post("/api/parse", response_model=ParseOut)
+def parse(body: ParseIn):
+    draft = parse_invoice_text(body.text)
+    required = {
+        "client_name": draft.client_name,
+        "client_email": draft.client_email,
+        "currency_code": draft.currency_code,
+        "items": draft.items,
+    }
+    return ParseOut(draft=draft, missing=[k for k, v in required.items() if not v])
+
+
+@app.post("/api/grid-assistant")
+async def grid_assistant(body: GridAssistantIn) -> dict:
+    return await run_in_threadpool(interpret_grid_request, body)
